@@ -3,155 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Noush Alert System</title>
+    <title>Noush Global Connect</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        :root { --primary: #00ff88; --bg: #121212; --panel: #1e1e1e; }
+        body { font-family: 'Courier New', monospace; background: var(--bg); color: white; display: flex; flex-direction: column; align-items: center; margin: 0; min-height: 100vh; }
+        h1 { color: var(--primary); text-transform: uppercase; letter-spacing: 2px; font-size: 1.5rem; margin-top: 20px; }
+        .control-panel { background: var(--panel); padding: 20px; border-radius: 8px; border: 1px solid #333; text-align: center; width: 90%; max-width: 400px; margin-bottom: 20px; }
+        input { background: #333; border: 1px solid #555; color: white; padding: 10px; font-size: 1.5rem; width: 100px; text-align: center; border-radius: 4px; letter-spacing: 5px; }
+        button { background: var(--primary); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; margin: 10px; border-radius: 4px; font-size: 1rem; }
+        button:hover { opacity: 0.8; }
+        button.join { background: #0088ff; color: white; }
+        .status { margin-top: 10px; font-size: 0.8rem; color: #aaa; }
+        .status.active { color: var(--primary); }
+        .video-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; width: 100%; }
+        .vid-box { position: relative; border: 2px solid #333; background: #000; width: 45%; min-width: 300px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .label { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 2px 8px; font-size: 0.8rem; border-radius: 4px; }
+    </style>
 </head>
 <body>
 
-    <h1>Noush Global Connect (Alert Mode)</h1>
-    <hr>
+    <h1>Noush Alert System</h1>
 
-    <h3>Step 1: Your ID</h3>
-    <p>Share this ID with your friend:</p>
-    <div id="my-id" style="font-weight: bold; font-size: 20px;">Waiting for server...</div>
-    <button onclick="copyId()">Copy ID</button>
-    <hr>
-
-    <h3>Step 2: Connect</h3>
-    <p>Enter Friend's ID to Join:</p>
-    <input type="text" id="remote-id" placeholder="Paste Friend ID here">
-    <button onclick="joinCall()">Join Call</button>
-    <hr>
-
-    <h3>Video Feed</h3>
-    <div style="border: 2px solid black; display: inline-block;">
-        <p>Remote Video:</p>
-        <video id="remote-video" autoplay playsinline width="400"></video>
+    <div class="control-panel">
+        <p>ENTER 3-DIGIT ROOM CODE</p>
+        <input type="number" id="room-code" placeholder="000" min="100" max="999">
+        <br>
+        <button onclick="startHost()">HOST (Share Screen)</button>
+        <button class="join" onclick="joinRoom()">JOIN (View & Talk)</button>
+        <div id="status-msg" class="status">System Standby...</div>
     </div>
-    <div style="border: 2px solid black; display: inline-block;">
-        <p>My Local Video:</p>
-        <video id="local-video" autoplay muted playsinline width="200"></video>
+
+    <div class="video-grid">
+        <div class="vid-box">
+            <video id="local-video" autoplay muted playsinline></video>
+            <div class="label">YOU (Local)</div>
+        </div>
+        <div class="vid-box">
+            <video id="remote-video" autoplay playsinline></video>
+            <div class="label">FRIEND (Remote)</div>
+        </div>
     </div>
 
     <script>
-        // --- 1. SETUP VARIABLES ---
-        const myIdDisplay = document.getElementById('my-id');
-        const remoteVideo = document.getElementById('remote-video');
+        const statusMsg = document.getElementById('status-msg');
         const localVideo = document.getElementById('local-video');
-        let localStream;
+        const remoteVideo = document.getElementById('remote-video');
         let peer;
+        let localStream;
 
-        // --- 2. CONFIGURATION (Google STUN) ---
-        const peerConfig = {
+        const iceConfig = {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
                 ]
             }
         };
 
-        // --- 3. START IMMEDIATELY ---
-        // automatically ask for permissions on load to be ready
-        window.onload = startApp;
-
-        async function startApp() {
+        async function getMedia() {
             try {
-                // Get Screen + Mic permissions
-                alert("Please Allow Screen and Microphone Access in the next popup.");
-                
                 const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-
-                // Merge streams
-                localStream = new MediaStream([
-                    ...screenStream.getVideoTracks(),
-                    ...audioStream.getAudioTracks()
-                ]);
-
-                // Show local video
-                localVideo.srcObject = localStream;
-
-                // Start PeerJS Connection
-                initPeer();
-
-            } catch (err) {
-                alert("Error: You denied permissions or closed the popup. " + err);
-            }
-        }
-
-        function initPeer() {
-            peer = new Peer(null, peerConfig);
-
-            // --- EVENT: Connected to Server ---
-            peer.on('open', (id) => {
-                myIdDisplay.innerText = id;
-                alert("SUCCESS: Connected to PeerJS Server!\n\nYour ID is: " + id);
-            });
-
-            // --- EVENT: Error ---
-            peer.on('error', (err) => {
-                alert("ERROR: " + err.type + "\n" + err);
-            });
-
-            // --- EVENT: Disconnected from Server ---
-            peer.on('disconnected', () => {
-                alert("WARNING: Disconnected from PeerJS Server.");
-            });
-
-            // --- EVENT: Incoming Call ---
-            peer.on('call', (call) => {
-                // Ask user if they want to answer
-                let accept = confirm("INCOMING CALL!\n\nSomeone is trying to connect. Answer?");
+                const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 
-                if (accept) {
-                    call.answer(localStream); // Send our stream back
-                    alert("Call Answered! Connecting stream...");
-                    
-                    call.on('stream', (remoteStream) => {
-                        alert("SUCCESS: Remote Stream Received!");
-                        remoteVideo.srcObject = remoteStream;
-                    });
-                    
-                    call.on('close', () => {
-                        alert("Call Ended by remote user.");
-                    });
-                } else {
-                    alert("Call Rejected.");
-                }
-            });
-        }
-
-        // --- 4. JOIN FUNCTION ---
-        function joinCall() {
-            const remoteId = document.getElementById('remote-id').value;
-            if (!remoteId) {
-                alert("Please enter a valid ID first!");
-                return;
+                const tracks = [...displayStream.getVideoTracks(), ...audioStream.getAudioTracks()];
+                localStream = new MediaStream(tracks);
+                localVideo.srcObject = localStream;
+                return localStream;
+            } catch (err) {
+                alert("Permission Error: " + err);
+                return null;
             }
-
-            alert("Attempting to connect to: " + remoteId);
-
-            const call = peer.call(remoteId, localStream);
-
-            call.on('stream', (remoteStream) => {
-                alert("SUCCESS: Connected to Friend! Video starting...");
-                remoteVideo.srcObject = remoteStream;
-            });
-
-            call.on('error', (err) => {
-                alert("Call Error: " + err);
-            });
-            
-            call.on('close', () => {
-                alert("Call Disconnected.");
-            });
         }
 
-        function copyId() {
-            const id = myIdDisplay.innerText;
-            navigator.clipboard.writeText(id);
-            alert("ID Copied to Clipboard!");
+        async function startHost() {
+            const code = document.getElementById('room-code').value;
+            if (code.length < 3) return alert("Enter 3 digits");
+
+            statusMsg.innerText = "Connecting to Google Servers...";
+            await getMedia();
+            
+            peer = new Peer(`noush-secure-${code}`, iceConfig);
+            
+            peer.on('open', (id) => {
+                statusMsg.innerText = "ONLINE: Google Server Connected. Waiting for friend...";
+                statusMsg.classList.add('active');
+                alert("SUCCESS: Connected to Google Server!\nRoom Created: " + code);
+            });
+
+            peer.on('call', (call) => {
+                call.answer(localStream);
+                setupCallEvent(call);
+            });
+
+            peer.on('error', (err) => alert("Error: ID might be taken. Try another code."));
+        }
+
+        async function joinRoom() {
+            const code = document.getElementById('room-code').value;
+            if (code.length < 3) return alert("Enter 3 digits");
+
+            statusMsg.innerText = "Connecting to Google Servers...";
+            
+            // Joiner needs mic
+            const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true }); // video true for face
+            localStream = micStream;
+            localVideo.srcObject = localStream;
+
+            peer = new Peer(null, iceConfig);
+
+            peer.on('open', (id) => {
+                statusMsg.innerText = "ONLINE. Dialing Room " + code + "...";
+                const call = peer.call(`noush-secure-${code}`, localStream);
+                setupCallEvent(call);
+            });
+
+            peer.on('error', (err) => alert("Connection Failed. Is the Host online?"));
+        }
+
+        function setupCallEvent(call) {
+            call.on('stream', (remoteStream) => {
+                remoteVideo.srcObject = remoteStream;
+                statusMsg.innerText = "SECURE CONNECTION ESTABLISHED";
+                statusMsg.classList.add('active');
+            });
+            call.on('close', () => alert("Call Ended"));
         }
     </script>
 </body>
