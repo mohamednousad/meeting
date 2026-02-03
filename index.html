@@ -3,349 +3,222 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resilient WebRTC Voice System</title>
+    <title>WebRTC Dev-Station | Multi-Network Voice</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --accent-green: #22c55e;
-            --accent-blue: #3b82f6;
-            --accent-red: #ef4444;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-        }
-
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
-        }
-
-        .container {
-            background-color: var(--card-bg);
-            padding: 2.5rem;
-            border-radius: 1.5rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            text-align: center;
-            width: 90%;
-            max-width: 420px;
-            border: 1px solid #334155;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 0.4rem 1rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 1.5rem;
-            background: #334155;
-            transition: all 0.3s ease;
-        }
-
-        .mic-container {
-            position: relative;
-            width: 100px;
-            height: 100px;
-            margin: 1.5rem auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .mic-icon {
-            width: 70px;
-            height: 70px;
-            background-color: #334155;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-            transition: background-color 0.3s ease;
-        }
-
-        .mic-icon svg {
-            width: 32px;
-            height: 32px;
-            fill: var(--text-primary);
-        }
-
-        /* VAD Animation */
-        .speaking {
-            background-color: var(--accent-green) !important;
-            animation: pulse-ring 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-        }
-
-        @keyframes pulse-ring {
-            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-            70% { box-shadow: 0 0 0 25px rgba(34, 197, 94, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-        }
-
-        .id-section {
-            background: #0f172a;
-            padding: 1rem;
-            border-radius: 0.75rem;
-            margin: 1rem 0;
-            border: 1px dashed #334155;
-        }
-
-        .peer-id-label {
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-            display: block;
-            margin-bottom: 0.25rem;
-        }
-
-        #my-id {
-            font-family: 'Monaco', 'Consolas', monospace;
-            color: var(--accent-blue);
-            font-weight: bold;
-            word-break: break-all;
-        }
-
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-top: 1.5rem;
-        }
-
-        input {
-            background: #0f172a;
-            border: 2px solid #334155;
-            border-radius: 0.75rem;
-            padding: 0.8rem 1rem;
-            color: white;
-            font-size: 0.95rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        input:focus { border-color: var(--accent-blue); }
-
-        button {
-            background-color: var(--accent-blue);
-            color: white;
-            border: none;
-            padding: 0.9rem;
-            border-radius: 0.75rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 0.1s, opacity 0.2s;
-        }
-
-        button:active { transform: scale(0.98); }
-        button:hover { opacity: 0.9; }
-        
-        #call-action-btn.ready-to-call { background-color: var(--accent-green); color: #062010; }
-
-        .hidden { display: none; }
+        body { background: #0b0e14; color: #e0e0e0; font-family: monospace; }
+        .dev-card { background: #161b22; border: 1px solid #30363d; border-radius: 4px; }
+        .status-pill { width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px; }
+        .online { background: #238636; box-shadow: 0 0 8px #238636; }
+        .offline { background: #da3633; }
+        #log-console { height: 200px; overflow-y: auto; background: #000; color: #00ff00; font-size: 0.8rem; padding: 10px; border: 1px solid #30363d; }
+        .user-item { padding: 8px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+        .mic-active { animation: glow 1s infinite alternate; }
+        @keyframes glow { from { box-shadow: 0 0 5px #238636; } to { box-shadow: 0 0 20px #238636; } }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div id="connection-status" class="status-badge">System Offline</div>
-        
-        <div class="mic-container">
-            <div id="vocal-indicator" class="mic-icon">
-                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+<div class="container-fluid py-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="dev-card p-3 mb-3">
+                <h6 class="text-uppercase text-muted border-bottom pb-2">System Authority</h6>
+                <div class="mb-3">
+                    <span id="state-indicator" class="status-pill offline"></span>
+                    <span id="conn-status">HARDWARE_OFFLINE</span>
+                </div>
+                <div class="small mb-2 text-info">LOCAL_PEER_ID:</div>
+                <div id="my-id" class="p-2 bg-dark border border-secondary mb-3 text-break text-warning">Awaiting Initialization...</div>
+                
+                <button id="init-btn" class="btn btn-outline-primary btn-sm w-100 mb-2">INITIALIZE_WEBRTC_STACK</button>
+                
+                <hr class="border-secondary">
+                
+                <div class="input-group input-group-sm mb-2">
+                    <input type="text" id="remote-id" class="form-control bg-dark text-white border-secondary" placeholder="REMOTE_PEER_ID">
+                    <button id="call-btn" class="btn btn-success" disabled>DIAL_LINK</button>
+                </div>
+            </div>
+
+            <div class="dev-card p-3">
+                <h6 class="text-uppercase text-muted border-bottom pb-2">Active Link Data</h6>
+                <div id="peer-list">
+                    <div class="text-muted small">No active media tracks...</div>
+                </div>
             </div>
         </div>
 
-        <div class="id-section">
-            <span class="peer-id-label">YOUR UNIQUE STATION ID</span>
-            <span id="my-id">--- --- ---</span>
-        </div>
-
-        <div class="input-group">
-            <input type="text" id="remote-peer-id" placeholder="Enter Destination ID...">
-            <button id="call-action-btn">Initialize Hardware</button>
+        <div class="col-md-8">
+            <div class="dev-card p-3 h-100">
+                <h6 class="text-uppercase text-muted border-bottom pb-2">ICE_SIGNALING_LOGS (NAT Traversal Audit)</h6>
+                <div id="log-console" class="mb-3"></div>
+                
+                <div class="row">
+                    <div class="col-6">
+                        <h6 class="text-uppercase text-muted small">VAD_ANALYSIS (Local)</h6>
+                        <div class="progress bg-dark" style="height: 20px;">
+                            <div id="vad-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h6 class="text-uppercase text-muted small">ICE_CANDIDATE_TYPE</h6>
+                        <div id="ice-type" class="badge bg-secondary">UNKNOWN</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+</div>
 
-    <audio id="remote-audio-player" autoplay playsinline class="hidden"></audio>
+<audio id="remote-audio" autoplay playsinline></audio>
 
-    <script>
-        const AppState = {
-            peer: null,
-            localStream: null,
-            audioContext: null,
-            analyser: null,
-            isInitialized: false
-        };
 
-        const UI = {
-            status: document.getElementById('connection-status'),
-            myId: document.getElementById('my-id'),
-            remoteInput: document.getElementById('remote-peer-id'),
-            callBtn: document.getElementById('call-action-btn'),
-            vocalIndicator: document.getElementById('vocal-indicator'),
-            remoteAudio: document.getElementById('remote-audio-player')
-        };
 
-        // Configuration based on Research Report
-        const peerConfiguration = {
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { 
-                        urls: 'turn:staticauth.openrelay.metered.ca:80', 
-                        username: 'openrelayproject', 
-                        credential: 'openrelayprojectsecret' 
-                    },
-                    { 
-                        urls: 'turn:staticauth.openrelay.metered.ca:443', 
-                        username: 'openrelayproject', 
-                        credential: 'openrelayprojectsecret' 
-                    }
-                ],
-                iceTransportPolicy: 'all'
-            }
-        };
-
-        UI.callBtn.addEventListener('click', async () => {
-            if (!AppState.isInitialized) {
-                const success = await setupLifecycle();
-                if (success) {
-                    AppState.isInitialized = true;
-                    UI.callBtn.innerText = "Initiate Voice Link";
-                    UI.callBtn.classList.add('ready-to-call');
+<script>
+    const App = {
+        peer: null,
+        localStream: null,
+        audioCtx: null,
+        analyser: null,
+        // Using Open Relay Project TURN servers for cross-network connectivity
+        iceConfig: {
+            'iceServers': [
+                { 'urls': 'stun:stun.l.google.com:19302' },
+                { 'urls': 'stun:stun1.l.google.com:19302' },
+                {
+                    urls: "turn:openrelay.metered.ca:80",
+                    username: "openrelayproject",
+                    credential: "openrelayprojectsecret",
+                },
+                {
+                    urls: "turn:openrelay.metered.ca:443",
+                    username: "openrelayproject",
+                    credential: "openrelayprojectsecret",
+                },
+                {
+                    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                    username: "openrelayproject",
+                    credential: "openrelayprojectsecret",
                 }
-            } else {
-                performCall();
-            }
+            ],
+            'iceTransportPolicy': 'all'
+        }
+    };
+
+    const Logger = (msg, type = 'INFO') => {
+        const consoleEl = document.getElementById('log-console');
+        const time = new Date().toLocaleTimeString().split(' ')[0];
+        consoleEl.innerHTML += `<div>[${time}] <span class="text-info">${type}</span>: ${msg}</div>`;
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    };
+
+    document.getElementById('init-btn').addEventListener('click', async () => {
+        Logger("Initializing MediaDevices...");
+        try {
+            App.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            App.audioCtx = new AudioContext();
+            setupVAD(App.localStream);
+            
+            Logger("Hardware Ready. Initializing PeerJS with TURN failover...");
+            
+            App.peer = new Peer(App.iceConfig);
+
+            App.peer.on('open', (id) => {
+                document.getElementById('my-id').innerText = id;
+                document.getElementById('state-indicator').className = 'status-pill online';
+                document.getElementById('conn-status').innerText = 'STACK_READY_WAITING_FOR_SIGNAL';
+                document.getElementById('call-btn').disabled = false;
+                Logger(`Peer Registered. ID: ${id}`);
+            });
+
+            App.peer.on('call', (call) => {
+                Logger("Inbound Call Detected", "SIGNAL");
+                call.answer(App.localStream);
+                handleCall(call);
+            });
+
+            App.peer.on('error', (err) => {
+                Logger(err.type, "FATAL_ERROR");
+                console.error(err);
+            });
+
+            document.getElementById('init-btn').disabled = true;
+            document.getElementById('init-btn').innerText = "ENGINE_RUNNING";
+        } catch (e) {
+            Logger(e.message, "HARDWARE_ERR");
+        }
+    });
+
+    document.getElementById('call-btn').addEventListener('click', () => {
+        const rId = document.getElementById('remote-id').value;
+        if (!rId) return Logger("Empty Remote ID", "ERROR");
+        
+        Logger(`Dialing: ${rId}`, "SIGNAL");
+        const call = App.peer.call(rId, App.localStream);
+        handleCall(call);
+    });
+
+    function handleCall(call) {
+        call.on('stream', (remoteStream) => {
+            Logger("Media Stream Connected", "STREAM");
+            const audio = document.getElementById('remote-audio');
+            audio.srcObject = remoteStream;
+            
+            // Monitor ICE Connection State
+            const pc = call.peerConnection;
+            pc.oniceconnectionstatechange = () => {
+                Logger(`ICE State: ${pc.iceConnectionState}`, "NETWORK");
+                if(pc.iceConnectionState === 'connected') {
+                    // Detect if using STUN or TURN
+                    pc.getStats().then(stats => {
+                        stats.forEach(report => {
+                            if(report.type === 'remote-candidate') {
+                                document.getElementById('ice-type').innerText = report.candidateType.toUpperCase();
+                                Logger(`Routed via: ${report.candidateType}`, "NETWORK");
+                            }
+                        });
+                    });
+                }
+            };
+
+            updateUserList(call.peer, true);
         });
 
-        async function setupLifecycle() {
-            try {
-                UI.status.innerText = "Requesting Media...";
-                
-                // 1. AudioContext Unlock (Gesture Required)
-                AppState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                if (AppState.audioContext.state === 'suspended') {
-                    await AppState.audioContext.resume();
-                }
+        call.on('close', () => {
+            Logger("Session Terminated", "SIGNAL");
+            updateUserList(call.peer, false);
+        });
+    }
 
-                // 2. Local Media Acquisition
-                AppState.localStream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
+    function setupVAD(stream) {
+        const source = App.audioCtx.createMediaStreamSource(stream);
+        App.analyser = App.audioCtx.createAnalyser();
+        App.analyser.fftSize = 256;
+        source.connect(App.analyser);
+        const data = new Uint8Array(App.analyser.frequencyBinCount);
 
-                // 3. Initialize VAD for local feedback
-                setupVAD(AppState.localStream);
-
-                // 4. Initialize PeerJS
-                initPeer();
-                
-                return true;
-            } catch (err) {
-                console.error(err);
-                UI.status.innerText = "Hardware Error";
-                UI.status.style.background = "var(--accent-red)";
-                return false;
-            }
+        function loop() {
+            App.analyser.getByteFrequencyData(data);
+            const volume = data.reduce((a, b) => a + b) / data.length;
+            document.getElementById('vad-bar').style.width = `${Math.min(volume * 2, 100)}%`;
+            requestAnimationFrame(loop);
         }
+        loop();
+    }
 
-        function initPeer() {
-            AppState.peer = new Peer(peerConfiguration);
+    function updateUserList(peerId, active) {
+        const list = document.getElementById('peer-list');
+        list.innerHTML = active ? `
+            <div class="user-item">
+                <span class="text-success">● ${peerId.substring(0,8)}...</span>
+                <span class="badge bg-primary">VOICE_ACTIVE</span>
+            </div>
+        ` : `<div class="text-muted small">No active media tracks...</div>`;
+    }
+</script>
 
-            AppState.peer.on('open', (id) => {
-                UI.myId.innerText = id;
-                UI.status.innerText = "Online / Ready";
-                UI.status.style.background = "var(--accent-blue)";
-            });
-
-            AppState.peer.on('call', (incoming) => {
-                UI.status.innerText = "Incoming Link...";
-                incoming.answer(AppState.localStream);
-                handleStream(incoming);
-            });
-
-            AppState.peer.on('error', (err) => {
-                UI.status.innerText = `Relay Error: ${err.type}`;
-                UI.status.style.background = "var(--accent-red)";
-            });
-        }
-
-        function performCall() {
-            const destId = UI.remoteInput.value.trim();
-            if (!destId) return;
-
-            UI.status.innerText = "Establishing Path...";
-            const call = AppState.peer.call(destId, AppState.localStream);
-            handleStream(call);
-        }
-
-        function handleStream(connection) {
-            connection.on('stream', (remoteStream) => {
-                UI.remoteAudio.srcObject = remoteStream;
-                // Force play to bypass mobile silent switches
-                UI.remoteAudio.play().catch(() => {
-                    UI.status.innerText = "Tap to Unmute";
-                    window.addEventListener('click', () => UI.remoteAudio.play(), { once: true });
-                });
-                
-                UI.status.innerText = "Link Active";
-                UI.status.style.background = "var(--accent-green)";
-            });
-
-            connection.on('close', () => {
-                UI.status.innerText = "Link Terminated";
-                UI.status.style.background = "#334155";
-            });
-        }
-
-        /**
-         * Voice Activity Detection (VAD) Logic
-         * Uses FFT to monitor the 80Hz - 255Hz human speech window
-         */
-        function setupVAD(stream) {
-            const source = AppState.audioContext.createMediaStreamSource(stream);
-            AppState.analyser = AppState.audioContext.createAnalyser();
-            AppState.analyser.fftSize = 512;
-            AppState.analyser.smoothingTimeConstant = 0.8;
-            source.connect(AppState.analyser);
-
-            const bufferLength = AppState.analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            const THRESHOLD = 40; 
-
-            function checkVolume() {
-                AppState.analyser.getByteFrequencyData(dataArray);
-                
-                // Average the first 15 bins (roughly 0 - 320Hz)
-                let energy = 0;
-                for(let i = 0; i < 15; i++) {
-                    energy += dataArray[i];
-                }
-                const avg = energy / 15;
-
-                if (avg > THRESHOLD) {
-                    UI.vocalIndicator.classList.add('speaking');
-                } else {
-                    UI.vocalIndicator.classList.remove('speaking');
-                }
-                requestAnimationFrame(checkVolume);
-            }
-            checkVolume();
-        }
-    </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
