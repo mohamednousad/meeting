@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noush Global Connect | Screen & Talk</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-color: #1e293b;
+            --primary-color: #3b82f6;
+            --primary-hover: #2563eb;
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --success-color: #22c55e;
+            --error-color: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            background-color: var(--panel-color);
+            padding: 15px 25px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        .logo { font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .logo span { color: var(--primary-color); }
+        
+        .status-badge {
+            font-size: 0.85rem;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: var(--border-color);
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+        .status-badge.connected { background: var(--success-color); color: white; }
+
+        /* Main Layout */
+        .container {
+            display: flex;
+            flex: 1;
+            height: 100%;
+        }
+
+        /* Sidebar Control Panel */
+        .sidebar {
+            width: 320px;
+            background-color: var(--panel-color);
+            border-right: 1px solid var(--border-color);
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        h3 { margin: 0 0 15px 0; font-size: 1rem; color: var(--text-color); }
+        p { margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--primary-color); }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-join { background-color: var(--border-color); color: white; }
+        .btn-join:hover { background-color: #475569; }
+
+        .id-display {
+            background: var(--bg-color);
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 1.1rem;
+            text-align: center;
+            border: 1px dashed var(--border-color);
+            color: var(--primary-color);
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        /* Video Stage */
+        .stage {
+            flex: 1;
+            background-color: #000;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        video {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .local-preview {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            aspect-ratio: 16/9;
+            background: #111;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .local-preview video { width: 100%; height: 100%; object-fit: cover; }
+
+        .overlay-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Utility */
+        .hidden { display: none !important; }
+        .copy-hint { font-size: 0.7rem; text-align: center; color: var(--text-muted); display: block; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 7l-7 5 7 5V7z"></path>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
+            Noush<span>Meet</span>
+        </div>
+        <div id="status-badge" class="status-badge">Ready to Connect</div>
+    </header>
+
+    <div class="container">
+        <div class="sidebar">
+            <div id="setup-panel">
+                <div class="card">
+                    <h3>Host a Meeting</h3>
+                    <p>Share your screen and microphone with others.</p>
+                    <button class="btn-primary" onclick="startHost()">Start Hosting</button>
+                </div>
+                <div style="height: 20px;"></div>
+                <div class="card">
+                    <h3>Join a Meeting</h3>
+                    <p>Enter an ID to watch and talk back.</p>
+                    <input type="text" id="remote-id-input" placeholder="Enter Host ID">
+                    <button class="btn-join" onclick="joinMeeting()">Join Call</button>
+                </div>
+            </div>
+
+            <div id="active-panel" class="hidden">
+                <div class="card">
+                    <h3>Your Session ID</h3>
+                    <div id="my-id-display" class="id-display" onclick="copyId()" title="Click to Copy">...</div>
+                    <span class="copy-hint">Share this code with your friend</span>
+                </div>
+                <div style="height: 20px;"></div>
+                <button class="btn-join" onclick="location.reload()" style="background-color: var(--error-color)">End Call</button>
+            </div>
+        </div>
+
+        <div class="stage">
+            <div id="placeholder" class="overlay-text">
+                <h2>Waiting for connection...</h2>
+                <p>Start hosting or join a room to begin.</p>
+            </div>
+            
+            <video id="main-video" autoplay playsinline></video>
+
+            <div id="pip-container" class="local-preview hidden">
+                <video id="pip-video" autoplay muted playsinline></video>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration with Google STUN Servers for Global Reach
+        const peerConfig = {
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' }
+                ]
+            },
+            debug: 2
+        };
+
+        let peer;
+        let localStream;
+        let currentCall;
+
+        // DOM Elements
+        const mainVideo = document.getElementById('main-video');
+        const pipVideo = document.getElementById('pip-video');
+        const pipContainer = document.getElementById('pip-container');
+        const statusBadge = document.getElementById('status-badge');
+        const setupPanel = document.getElementById('setup-panel');
+        const activePanel = document.getElementById('active-panel');
+        const myIdDisplay = document.getElementById('my-id-display');
+        const placeholder = document.getElementById('placeholder');
+
+        // --- HOST LOGIC ---
+        async function startHost() {
+            try {
+                // 1. Get Microphone Audio
+                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                
+                // 2. Get Screen Video
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: { cursor: "always" }, 
+                    audio: true // Attempt to capture system audio too
+                });
+
+                // 3. Combine them: Screen Video Track + Mic Audio Track
+                // Note: We use the screen's audio if available, otherwise just mic, or mix them if advanced context used.
+                // Simple merge: Use screen video and mic audio.
+                const tracks = [
+                    ...screenStream.getVideoTracks(),
+                    ...audioStream.getAudioTracks()
+                ];
+                localStream = new MediaStream(tracks);
+
+                // Show local preview
+                mainVideo.srcObject = localStream;
+                mainVideo.muted = true; // Mute local to prevent feedback
+                placeholder.style.display = 'none';
+
+                // Handle screen share stop
+                screenStream.getVideoTracks()[0].onended = () => location.reload();
+
+                initializePeer(true); // True = isHost
+
+            } catch (err) {
+                console.error("Error starting host:", err);
+                alert("Permission denied or cancelled. You must allow screen and mic access.");
+            }
+        }
+
+        // --- JOIN LOGIC ---
+        async function joinMeeting() {
+            const remoteId = document.getElementById('remote-id-input').value.trim();
+            if (!remoteId) return alert("Please enter the Host ID");
+
+            try {
+                // Get Mic Audio to talk back
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                
+                // Show visual feedback that mic is on (in PiP)
+                // Since it's audio only, we can't really show video, but we keep the object ready
+                
+                initializePeer(false, remoteId); // False = notHost
+
+            } catch (err) {
+                console.error("Mic permission error:", err);
+                // Allow joining even if mic denied, just listen mode
+                if(confirm("Microphone access denied. Join in listen-only mode?")) {
+                    localStream = null;
+                    initializePeer(false, remoteId);
+                }
+            }
+        }
+
+        // --- PEERJS LOGIC ---
+        function initializePeer(isHost, remoteId = null) {
+            statusBadge.innerText = "Connecting to Global Cloud...";
+            
+            // Create Peer instance
+            peer = new Peer(null, peerConfig);
+
+            peer.on('open', (id) => {
+                console.log('My ID: ' + id);
+                myIdDisplay.innerText = id;
+                setupPanel.classList.add('hidden');
+                activePanel.classList.remove('hidden');
+                statusBadge.innerText = isHost ? "Waiting for Peer..." : "Connecting to Host...";
+
+                if (!isHost && remoteId) {
+                    connectToHost(remoteId);
+                }
+            });
+
+            // Handle Incoming Call (Host receives Joiner, Joiner might receive call back)
+            peer.on('call', (call) => {
+                if (confirm(`Incoming connection from someone. Allow?`)) {
+                    // Answer the call with our stream (Screen+Mic for Host, Mic-only for Joiner)
+                    call.answer(localStream);
+                    handleStream(call);
+                }
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                statusBadge.innerText = "Connection Error";
+                statusBadge.style.background = "var(--error-color)";
+                alert("Error: " + err.type);
+            });
+        }
+
+        function connectToHost(hostId) {
+            // Call the host with our Mic stream
+            const call = peer.call(hostId, localStream);
+            handleStream(call);
+        }
+
+        function handleStream(call) {
+            currentCall = call;
+            statusBadge.innerText = "Connected";
+            statusBadge.classList.add('connected');
+            placeholder.style.display = 'none';
+
+            call.on('stream', (remoteStream) => {
+                // Logic to decide where to put the video
+                // If we are the Joiner, the remoteStream is the Screen Share -> put in mainVideo
+                // If we are the Host, the remoteStream is just Audio -> play it (can hide video element)
+                
+                // Check if stream has video tracks
+                if (remoteStream.getVideoTracks().length > 0) {
+                    mainVideo.srcObject = remoteStream;
+                    mainVideo.muted = false; // Ensure we hear the screen/mic
+                } else {
+                    // Audio only stream (from Joiner to Host)
+                    // Create a hidden video/audio element to play it
+                    const audioEl = document.createElement('audio');
+                    audioEl.srcObject = remoteStream;
+                    audioEl.autoplay = true;
+                    document.body.appendChild(audioEl);
+                }
+            });
+
+            call.on('close', () => {
+                statusBadge.innerText = "Disconnected";
+                statusBadge.classList.remove('connected');
+                alert("Call ended");
+                location.reload();
+            });
+        }
+
+        function copyId() {
+            const id = myIdDisplay.innerText;
+            navigator.clipboard.writeText(id).then(() => {
+                alert("ID Copied to Clipboard!");
+            });
+        }
+    </script>
+</body>
+</html>
