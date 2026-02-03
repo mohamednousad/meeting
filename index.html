@@ -3,88 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Noush Live Talk & Share</title>
+    <title>Simple Voice Chat</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
-        :root { --main: #00e5ff; --bg: #0f0f13; --panel: #1a1a20; --text: #fff; }
-        body { margin: 0; font-family: sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        body { font-family: sans-serif; background: #121212; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .box { background: #1e1e1e; padding: 40px; border-radius: 10px; text-align: center; border: 1px solid #333; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        h1 { margin-bottom: 5px; color: #00ff88; }
+        p { color: #aaa; margin-bottom: 20px; }
         
-        /* Layout */
-        .container { width: 90%; max-width: 1000px; margin-top: 20px; text-align: center; }
-        h1 { color: var(--main); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
-        .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 20px; }
-
-        /* Login Card */
-        #login-card { background: var(--panel); padding: 30px; border-radius: 12px; border: 1px solid #333; display: inline-block; }
-        input { background: #000; border: 1px solid #444; color: white; padding: 12px; font-size: 1rem; border-radius: 6px; text-align: center; display: block; width: 80%; margin: 10px auto; }
-        button { background: var(--main); color: #000; border: none; padding: 12px 24px; font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 1rem; margin: 5px; transition: 0.2s; }
+        input { padding: 15px; font-size: 1.5rem; text-align: center; width: 120px; border-radius: 5px; border: none; margin: 10px; background: #333; color: white; }
+        button { padding: 15px 30px; font-size: 1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; }
+        
+        .btn-create { background: #00ff88; color: black; }
+        .btn-join { background: #0088ff; color: white; }
         button:hover { opacity: 0.8; transform: scale(1.05); }
-        button.secondary { background: #333; color: white; }
 
-        /* Room UI (Hidden by default) */
-        #room-ui { display: none; width: 100%; }
-        .info-bar { background: #222; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--main); text-align: left; display: flex; justify-content: space-between; align-items: center; }
-        .room-badge { background: var(--main); color: black; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 1.2rem; }
-
-        /* Video Grid */
-        .grid { display: grid; grid-template-columns: 3fr 1fr; gap: 15px; height: 60vh; }
-        .vid-wrapper { position: relative; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
-        video { width: 100%; height: 100%; object-fit: contain; background: #000; }
-        
-        /* Labels */
-        .tag { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; pointer-events: none; }
-        .status-dot { height: 10px; width: 10px; background-color: #555; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .connected .status-dot { background-color: #00ff00; box-shadow: 0 0 10px #00ff00; }
-
-        /* Mobile Adjustments */
-        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+        #status { margin-top: 20px; font-weight: bold; color: #ffcc00; }
+        .success { color: #00ff00 !important; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>Noush Global Connect</h1>
-        <p class="subtitle">Realtime Screen Sharing & Audio Talk</p>
+    <div class="box">
+        <h1>Private Voice Call</h1>
+        <p>Simple Global Audio Chat</p>
 
-        <div id="login-card">
-            <h3>Start Session</h3>
-            <input type="text" id="username" placeholder="Enter Your Name">
-            <hr style="border-color: #333; margin: 20px 0;">
-            
-            <p><strong>Option 1: Host a Room</strong></p>
-            <button onclick="createRoom()">Create New Room (Random ID)</button>
-
-            <p style="margin-top:20px;"><strong>Option 2: Join a Room</strong></p>
-            <input type="number" id="join-id" placeholder="Enter 3-Digit ID" max="999">
-            <button class="secondary" onclick="joinRoom()">Join Existing Room</button>
+        <div id="setup-ui">
+            <button class="btn-create" onclick="createRoom()">Create Room</button>
+            <br><br>
+            <span>OR JOIN FRIEND</span><br>
+            <input type="number" id="room-code" placeholder="000">
+            <button class="btn-join" onclick="joinRoom()">Join Call</button>
         </div>
 
-        <div id="room-ui">
-            <div class="info-bar">
-                <div>
-                    <span>Room ID: </span>
-                    <span id="display-room-id" class="room-badge">...</span>
-                    <span style="margin-left: 15px; color: #aaa;" id="connection-status"><span class="status-dot"></span>Waiting for server...</span>
-                </div>
-                <button onclick="location.reload()" style="padding: 5px 15px; background: #ff4444; color: white;">Leave</button>
-            </div>
-
-            <div class="grid">
-                <div class="vid-wrapper">
-                    <video id="main-video" autoplay playsinline></video>
-                    <div class="tag" id="main-label">Waiting for connection...</div>
-                </div>
-                <div class="vid-wrapper">
-                    <video id="sub-video" autoplay muted playsinline></video>
-                    <div class="tag">You (<span id="my-name-display"></span>)</div>
-                </div>
-            </div>
+        <div id="active-ui" style="display:none;">
+            <h2 id="room-display" style="font-size: 3rem; margin: 10px;">...</h2>
+            <p>Share this number with your friend</p>
         </div>
+
+        <div id="status">Status: Waiting for action...</div>
+        
+        <audio id="remote-audio" autoplay></audio>
     </div>
 
     <script>
-        // --- CONFIGURATION ---
-        const stunConfig = {
+        // --- 1. CONFIGURATION (Google STUN for crossing countries) ---
+        const peerConfig = {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
@@ -94,167 +58,89 @@
         };
 
         let peer;
-        let myStream;
-        let myName = "User";
+        let localStream;
+        const statusEl = document.getElementById('status');
+        const remoteAudio = document.getElementById('remote-audio');
 
-        // --- DOM ELEMENTS ---
-        const loginCard = document.getElementById('login-card');
-        const roomUi = document.getElementById('room-ui');
-        const mainVideo = document.getElementById('main-video'); // Remote (Unmuted)
-        const subVideo = document.getElementById('sub-video');   // Local (Muted)
-        const statusText = document.getElementById('connection-status');
-        const statusDot = document.querySelector('.status-dot');
-
-        // --- 1. CREATE ROOM (HOST) ---
+        // --- 2. HOST LOGIC ---
         async function createRoom() {
-            const nameInput = document.getElementById('username').value;
-            if (!nameInput) return alert("Please enter your name!");
-            myName = nameInput;
+            // Get Mic Permission first
+            if (!await setupAudio()) return;
 
-            try {
-                // 1. Generate Random 3 Digit ID
-                const roomId = Math.floor(Math.random() * 900) + 100;
-
-                // 2. Get Permissions (Screen + Mic)
-                alert("Please select the SCREEN to share, then allow MICROPHONE.");
-                
-                // Get Screen
-                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                // Get Mic
-                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-                // Merge Tracks: Video from Screen, Audio from Mic + System
-                myStream = new MediaStream([
-                    ...screenStream.getVideoTracks(),
-                    ...micStream.getAudioTracks()
-                ]);
-
-                // 3. Show UI
-                setupUI(roomId, "Host");
-                subVideo.srcObject = myStream; // Show my screen in small box
-                document.getElementById('main-label').innerText = "Waiting for friend to join...";
-
-                // 4. Initialize Peer
-                initPeer(roomId, true);
-
-            } catch (err) {
-                alert("Error starting host: " + err.message);
-                location.reload();
-            }
-        }
-
-        // --- 2. JOIN ROOM (GUEST) ---
-        async function joinRoom() {
-            const nameInput = document.getElementById('username').value;
-            const roomId = document.getElementById('join-id').value;
-
-            if (!nameInput) return alert("Enter Name!");
-            if (roomId.length !== 3) return alert("Invalid Room ID (Must be 3 digits)");
-            myName = nameInput;
-
-            try {
-                // 1. Get Mic Permission Only (Audio Talk)
-                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                myStream = audioStream;
-
-                // 2. Show UI
-                setupUI(roomId, "Guest");
-                // Local view is black for audio-only, but that's fine
-                subVideo.srcObject = myStream; 
-
-                // 3. Connect
-                initPeer(roomId, false);
-
-            } catch (err) {
-                alert("Microphone access denied! You cannot speak.");
-            }
-        }
-
-        // --- 3. PEERJS LOGIC ---
-        function initPeer(roomId, isHost) {
-            const peerId = `noush-room-${roomId}-${isHost ? 'host' : 'guest'}`;
-            peer = new Peer(peerId, stunConfig);
+            // Generate Random 3-Digit ID
+            const roomId = Math.floor(Math.random() * 900) + 100;
+            
+            // Connect to PeerJS Cloud
+            // We use a prefix 'voice-app-' to ensure the ID is unique on their server
+            peer = new Peer(`voice-app-${roomId}`, peerConfig);
 
             peer.on('open', (id) => {
-                setStatus("Connected to Google Server", true);
-                
-                if (!isHost) {
-                    // If Guest, call the Host immediately
-                    connectToHost(roomId);
-                }
+                showActiveUI(roomId);
+                statusEl.innerText = "Waiting for friend to join...";
             });
 
-            // Handle Incoming Calls
+            // Answer incoming call automatically
             peer.on('call', (call) => {
-                // Answer the call with our stream (Mic or Screen)
-                call.answer(myStream);
+                call.answer(localStream); // Send my voice back
                 
-                // Receive the other person's stream
                 call.on('stream', (remoteStream) => {
-                    handleRemoteStream(remoteStream);
+                    playAudio(remoteStream);
                 });
             });
 
-            peer.on('error', (err) => {
-                console.error(err);
-                if(err.type === 'unavailable-id') {
-                    alert("ID Conflict. Please reload and try again.");
-                } else if(err.type === 'peer-unavailable') {
-                    setStatus("Waiting for Host...", false);
-                }
-            });
+            peer.on('error', (err) => alert("Error: " + err));
         }
 
-        function connectToHost(roomId) {
-            setStatus("Calling Host...", false);
-            const hostId = `noush-room-${roomId}-host`;
-            
-            // Call the Host
-            const call = peer.call(hostId, myStream);
+        // --- 3. JOIN LOGIC ---
+        async function joinRoom() {
+            const roomId = document.getElementById('room-code').value;
+            if (roomId.length !== 3) return alert("Please enter the 3-digit code!");
 
-            call.on('stream', (remoteStream) => {
-                handleRemoteStream(remoteStream);
-            });
+            // Get Mic Permission first
+            if (!await setupAudio()) return;
 
-            call.on('error', (err) => {
-                setStatus("Host not found yet...", false);
-            });
-        }
+            statusEl.innerText = "Connecting to server...";
+            
+            // Connect as a guest (random ID)
+            peer = new Peer(null, peerConfig);
 
-        function handleRemoteStream(stream) {
-            setStatus("Connected! Live Audio & Video", true);
-            
-            // Set to Main Video (Large)
-            mainVideo.srcObject = stream;
-            document.getElementById('main-label').innerText = "Remote Feed (Audio Enabled)";
-            
-            // ENSURE AUDIO PLAYS
-            mainVideo.muted = false; 
-            const playPromise = mainVideo.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.log('Auto-play was prevented. Interaction needed.');
+            peer.on('open', (id) => {
+                statusEl.innerText = "Calling Room " + roomId + "...";
+                
+                // Call the Host
+                const call = peer.call(`voice-app-${roomId}`, localStream);
+
+                call.on('stream', (remoteStream) => {
+                    playAudio(remoteStream);
                 });
+
+                call.on('error', (err) => {
+                    statusEl.innerText = "Call Failed. Is the room ID correct?";
+                });
+            });
+        }
+
+        // --- 4. HELPERS ---
+        async function setupAudio() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                return true;
+            } catch (err) {
+                alert("Microphone Access Denied! You cannot talk without a mic.");
+                return false;
             }
         }
 
-        // --- HELPER FUNCTIONS ---
-        function setupUI(roomId, role) {
-            loginCard.style.display = 'none';
-            roomUi.style.display = 'block';
-            document.getElementById('display-room-id').innerText = roomId;
-            document.getElementById('my-name-display').innerText = myName + " (" + role + ")";
+        function playAudio(stream) {
+            statusEl.innerText = "CONNECTED! YOU CAN SPEAK NOW.";
+            statusEl.classList.add('success');
+            remoteAudio.srcObject = stream;
         }
 
-        function setStatus(msg, active) {
-            statusText.innerHTML = `<span class="status-dot"></span> ${msg}`;
-            if(active) {
-                statusText.classList.add('connected');
-                // Visual confirmation
-                document.querySelector('.info-bar').style.borderColor = "#00ff00";
-            } else {
-                statusText.classList.remove('connected');
-            }
+        function showActiveUI(id) {
+            document.getElementById('setup-ui').style.display = 'none';
+            document.getElementById('active-ui').style.display = 'block';
+            document.getElementById('room-display').innerText = id;
         }
     </script>
 </body>
