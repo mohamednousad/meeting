@@ -3,160 +3,337 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Noush Meet - Video Conference</title>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <title>Audio-First Meet</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        .user-card { 
-            position: relative; 
-            background: white; 
-            border-radius: 16px; 
-            overflow: hidden; 
-            aspect-ratio: 16/9;
-            transition: all 0.3s;
-        }
-        .user-card.expanded {
-            position: fixed;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90vw;
-            max-width: 1200px;
-            height: calc(90vh - 160px);
-            z-index: 100;
-            aspect-ratio: unset;
-        }
-        .user-card video {
+        body { background-color: #111827; color: white; }
+        /* Grid Layout for Screens */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            padding: 1rem;
         }
-        .avatar-ring {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 120px;
-            height: 120px;
-            border: 3px solid #3b82f6;
-            border-radius: 50%;
-            opacity: 0;
-            pointer-events: none;
-        }
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #1f2937;
-            color: white;
-            padding: 16px 24px;
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
             border-radius: 12px;
-            transform: translateX(400px);
-            transition: transform 0.3s;
-            z-index: 1000;
+            border: 1px solid #374151;
         }
-        .toast.show { transform: translateX(0); }
-        #hack-canvas { display: none; }
-        .expand-btn {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            z-index: 10;
-            opacity: 0;
-            transition: opacity 0.3s;
+        /* Pulse animation for the Avatar Canvas */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            50% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.7; }
         }
-        .user-card:hover .expand-btn { opacity: 1; }
-        .user-card.expanded .expand-btn { opacity: 1; }
     </style>
 </head>
-<body class="bg-gray-50">
-    <canvas id="hack-canvas" width="640" height="480"></canvas>
-    <div id="toast" class="toast"></div>
+<body class="h-screen flex flex-col overflow-hidden">
 
-    <!-- Landing -->
-    <div id="landing-screen" class="min-h-screen flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full">
-            <div class="text-center mb-8">
-                <div class="w-20 h-20 bg-blue-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-                    <i class="fas fa-video text-white text-3xl"></i>
-                </div>
-                <h1 class="text-3xl font-bold text-gray-900 mb-2">Noush Meet</h1>
-                <p class="text-gray-600">Secure P2P conferencing with screen share.</p>
+    <nav class="flex justify-between items-center p-4 border-b border-gray-800 bg-gray-900 z-20">
+        <div class="flex items-center gap-3">
+            <div class="bg-indigo-600 p-2 rounded-lg">
+                <i class="fas fa-headset text-white"></i>
             </div>
-            <button onclick="prepareSession('create')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl mb-3 transition">
-                <i class="fas fa-plus-circle mr-2"></i> Create New Room
-            </button>
-            <div class="text-center text-gray-500 text-sm my-4">Or Join with Code</div>
-            <div class="flex gap-2">
-                <input id="input-code" type="text" placeholder="CODE" maxlength="5" class="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl text-center font-mono uppercase focus:border-blue-600 focus:outline-none">
-                <button onclick="prepareSession('join')" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition">Join</button>
+            <div>
+                <h1 class="font-bold text-lg">AudioRoom</h1>
+                <p class="text-xs text-gray-400">Voice + Screen Share</p>
             </div>
         </div>
-    </div>
-
-    <!-- Name Modal -->
-    <div id="modal-name" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl p-8 max-w-sm w-full">
-            <p class="text-gray-600 mb-6">How should you appear to others?</p>
-            <input id="input-name" type="text" placeholder="Enter your name" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-600 focus:outline-none mb-4">
-            <div class="flex gap-3">
-                <button onclick="cancelEntry()" class="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl font-semibold hover:bg-gray-50 transition">Cancel</button>
-                <button onclick="confirmEntry()" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition">Create</button>
-            </div>
+        <div class="flex gap-2">
+            <span id="status-badge" class="px-3 py-1 bg-yellow-900/50 text-yellow-500 rounded-full text-xs font-mono border border-yellow-700 flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+                IDLE
+            </span>
         </div>
-    </div>
+    </nav>
 
-    <!-- Room Header -->
-    <div id="room-header" class="hidden fixed top-0 left-0 right-0 bg-white shadow-md z-50 px-6 py-4">
-        <div class="flex items-center justify-between max-w-7xl mx-auto">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                    <i class="fas fa-video text-white text-xl"></i>
-                </div>
-                <div>
-                    <h2 class="font-bold text-gray-900">Noush Meet</h2>
-                    <div class="text-sm text-gray-600" id="user-count">1 Online</div>
-                </div>
+    <main class="flex-1 relative bg-gray-950 flex flex-col items-center justify-center">
+        
+        <div id="video-grid" class="video-grid hidden">
             </div>
-            <div class="flex items-center gap-3">
-                <code id="display-code" class="px-4 py-2 bg-gray-100 rounded-lg font-mono font-bold text-lg text-blue-600"></code>
-                <button onclick="copyCode()" class="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition">
-                    <i class="fas fa-copy"></i>
+
+        <div id="placeholder" class="text-center p-8 max-w-md">
+            <h2 class="text-2xl font-bold mb-2">Join Meet</h2>
+            <p class="text-gray-400 mb-8 text-sm">Create a secure voice channel. Share your screen instantly when needed.</p>
+            
+            <div class="flex flex-col gap-4">
+                <button onclick="startHosting()" class="bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-6 rounded-xl font-medium transition-all shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2">
+                    <i class="fas fa-plus-circle"></i> Create Meet
                 </button>
+                
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-800"></div></div>
+                    <div class="relative flex justify-center text-xs uppercase"><span class="bg-gray-950 px-2 text-gray-500">Or Join</span></div>
+                </div>
+
+                <div class="flex gap-2">
+                    <input id="room-code" type="text" placeholder="5-LETTER CODE" class="bg-gray-900 border border-gray-800 text-white text-center rounded-xl px-4 py-3 flex-1 focus:ring-2 focus:ring-indigo-500 outline-none uppercase tracking-widest font-mono">
+                    <button onclick="joinRoom()" class="bg-gray-800 hover:bg-gray-700 text-white px-6 rounded-xl font-medium transition-all">Join</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Room Grid -->
-    <div id="room-grid" class="hidden pt-24 pb-32 px-6 min-h-screen">
-        <div id="grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto"></div>
-    </div>
-
-    <!-- Room Footer Controls -->
-    <div id="room-footer" class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-4 z-50">
-        <div class="flex items-center justify-center gap-3 max-w-2xl mx-auto">
-            <button id="btn-video" onclick="toggleVideo()" class="px-6 py-4 bg-gray-100 text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-200 transition font-semibold">
-                <i class="fas fa-video mr-2"></i> Camera
-            </button>
-            <button id="btn-audio" onclick="toggleAudio()" class="px-6 py-4 bg-gray-100 text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-200 transition font-semibold">
-                <i class="fas fa-microphone mr-2"></i> Mic
-            </button>
-            <button id="btn-share" onclick="toggleShare()" class="px-6 py-4 bg-gray-100 text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-200 transition font-semibold">
-                <i class="fas fa-desktop mr-2"></i> Share
-            </button>
-            <button onclick="leaveSession()" class="px-8 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-bold">
-                <i class="fas fa-phone-slash mr-2"></i> Leave
-            </button>
+        <div id="room-info" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-gray-900/90 backdrop-blur border border-gray-700 px-6 py-2 rounded-full shadow-2xl flex items-center gap-4 z-10">
+            <span class="text-gray-400 text-xs uppercase tracking-wide">Room Code</span>
+            <span id="display-code" class="text-xl font-mono font-bold text-indigo-400 select-all cursor-pointer" onclick="copyCode()">---</span>
+            <i class="fas fa-copy text-gray-500 hover:text-white cursor-pointer text-xs" onclick="copyCode()"></i>
         </div>
-    </div>
 
-    <script src="./script.js"></script>
+    </main>
+
+    <footer class="bg-gray-900 border-t border-gray-800 p-4 flex justify-center gap-4 z-20">
+        <button onclick="toggleMic()" id="btn-mic" class="w-12 h-12 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center transition-all border border-gray-700">
+            <i class="fas fa-microphone"></i>
+        </button>
+        
+        <button onclick="shareScreen()" id="btn-screen" class="w-12 h-12 rounded-full bg-gray-800 hover:bg-indigo-600 text-white flex items-center justify-center transition-all border border-gray-700 group relative">
+            <i class="fas fa-desktop"></i>
+            <span class="absolute -top-10 bg-black text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Share Screen</span>
+        </button>
+
+        <button onclick="leaveRoom()" class="w-14 h-12 rounded-full bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center transition-all border border-red-500/20">
+            <i class="fas fa-phone-slash"></i>
+        </button>
+    </footer>
+
+    <canvas id="avatar-canvas" width="640" height="480" class="hidden"></canvas>
+
+    <script>
+        let peer;
+        let myStream; // The mix of Audio + Canvas
+        let micTrack; // The actual microphone track
+        let videoSender; // The WebRTC sender (to swap screen share)
+        let currentCall;
+        let isScreenSharing = false;
+
+        // --- 1. THE CANVAS HACK (Create a fake video stream) ---
+        // This ensures we have a video track to replace later with Screen Share
+        function createGhostStream(initials = "U") {
+            const canvas = document.getElementById('avatar-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Animation Loop to keep the stream active
+            let hue = 0;
+            setInterval(() => {
+                hue = (hue + 1) % 360;
+                // Background
+                ctx.fillStyle = `#1f2937`; 
+                ctx.fillRect(0, 0, 640, 480);
+                
+                // Pulsing Circle
+                ctx.beginPath();
+                ctx.arc(320, 240, 100, 0, 2 * Math.PI);
+                ctx.fillStyle = `hsl(${hue}, 60%, 50%)`;
+                ctx.fill();
+
+                // Text
+                ctx.fillStyle = "white";
+                ctx.font = "bold 80px sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(initials, 320, 240);
+            }, 50); // 20 FPS
+
+            return canvas.captureStream(30);
+        }
+
+        async function initAudio() {
+            try {
+                // 1. Get Microphone
+                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                micTrack = audioStream.getAudioTracks()[0];
+
+                // 2. Get Ghost Video (Canvas)
+                const ghostStream = createGhostStream("YOU");
+                const ghostVideoTrack = ghostStream.getVideoTracks()[0];
+
+                // 3. Combine them
+                myStream = new MediaStream([micTrack, ghostVideoTrack]);
+
+                // 4. Update UI Status
+                document.getElementById('status-badge').innerHTML = 
+                    `<div class="w-2 h-2 rounded-full bg-green-500"></div> READY`;
+                document.getElementById('status-badge').className = 
+                    "px-3 py-1 bg-green-900/50 text-green-400 rounded-full text-xs font-mono border border-green-800 flex items-center gap-2";
+
+                return true;
+            } catch (e) {
+                alert("Microphone access is required!");
+                console.error(e);
+                return false;
+            }
+        }
+
+        // --- 2. PEER LOGIC ---
+
+        function startHosting() {
+            initAudio().then(ok => {
+                if(!ok) return;
+                const id = Math.random().toString(36).substring(2, 7);
+                setupPeer(id);
+            });
+        }
+
+        function joinRoom() {
+            const id = document.getElementById('room-code').value.toLowerCase().trim();
+            if(id.length !== 5) return alert("Invalid Code");
+            
+            initAudio().then(ok => {
+                if(!ok) return;
+                setupPeer(null, id); // null ID means let PeerJS assign one, then we call 'id'
+            });
+        }
+
+        function setupPeer(myId, destId = null) {
+            peer = new Peer(myId);
+
+            peer.on('open', (id) => {
+                console.log("My Peer ID:", id);
+                enterRoomMode(destId || id); // If hosting, show my ID. If joining, show dest ID.
+                
+                if (destId) {
+                    // We are joining
+                    const call = peer.call(destId, myStream);
+                    handleCall(call);
+                }
+            });
+
+            peer.on('call', (call) => {
+                // Someone calls us
+                call.answer(myStream);
+                handleCall(call);
+            });
+
+            peer.on('error', err => console.error(err));
+        }
+
+        function handleCall(call) {
+            currentCall = call;
+            
+            call.on('stream', (remoteStream) => {
+                addVideoToGrid(remoteStream);
+            });
+
+            // IMPORTANT: Capture the sender so we can replaceTrack later
+            // We need to wait a tiny bit for connection
+            call.peerConnection.onconnectionstatechange = () => {
+                if(call.peerConnection.connectionState === 'connected') {
+                    videoSender = call.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                }
+            };
+        }
+
+        // --- 3. SCREEN SHARE LOGIC (The Smart Part) ---
+
+        async function shareScreen() {
+            if (!currentCall) return alert("You must be in a call to share.");
+
+            if (!isScreenSharing) {
+                // START SHARING
+                try {
+                    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                    const screenTrack = screenStream.getVideoTracks()[0];
+
+                    // Replace the "Ghost Canvas" track with "Screen" track
+                    if (videoSender) {
+                        videoSender.replaceTrack(screenTrack);
+                    }
+
+                    // Local UI update (Optional: Show my own screen?)
+                    // For now we just update button state
+                    const btn = document.getElementById('btn-screen');
+                    btn.classList.add('bg-indigo-600', 'text-white');
+                    btn.classList.remove('bg-gray-800');
+                    
+                    isScreenSharing = true;
+
+                    // Handle user clicking "Stop Sharing" on browser UI
+                    screenTrack.onended = () => stopSharing();
+
+                } catch (e) {
+                    console.error("Cancelled screen share");
+                }
+            } else {
+                // STOP SHARING manually
+                stopSharing();
+            }
+        }
+
+        function stopSharing() {
+            // Revert to Ghost Canvas
+            const ghostStream = createGhostStream("YOU");
+            const ghostTrack = ghostStream.getVideoTracks()[0];
+
+            if (videoSender) {
+                videoSender.replaceTrack(ghostTrack);
+            }
+
+            const btn = document.getElementById('btn-screen');
+            btn.classList.remove('bg-indigo-600', 'text-white');
+            btn.classList.add('bg-gray-800');
+            isScreenSharing = false;
+        }
+
+        // --- 4. UI HELPERS ---
+
+        function enterRoomMode(roomId) {
+            document.getElementById('placeholder').classList.add('hidden');
+            document.getElementById('video-grid').classList.remove('hidden');
+            document.getElementById('room-info').classList.remove('hidden');
+            document.getElementById('display-code').innerText = roomId;
+            
+            // Add my own local preview (Ghost or Screen)
+            const myVideo = document.createElement('video');
+            myVideo.muted = true; // Don't hear myself
+            myVideo.srcObject = myStream;
+            myVideo.autoplay = true;
+            document.getElementById('video-grid').appendChild(myVideo);
+        }
+
+        function addVideoToGrid(stream) {
+            // Check if exists
+            if(document.getElementById(stream.id)) return;
+
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.id = stream.id;
+            document.getElementById('video-grid').appendChild(video);
+        }
+
+        function toggleMic() {
+            if(micTrack) {
+                micTrack.enabled = !micTrack.enabled;
+                const btn = document.getElementById('btn-mic');
+                if(micTrack.enabled) {
+                    btn.classList.remove('bg-red-500', 'text-white');
+                    btn.classList.add('bg-gray-800');
+                    btn.innerHTML = '<i class="fas fa-microphone"></i>';
+                } else {
+                    btn.classList.add('bg-red-500', 'text-white');
+                    btn.classList.remove('bg-gray-800');
+                    btn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+                }
+            }
+        }
+
+        function copyCode() {
+            const code = document.getElementById('display-code').innerText;
+            navigator.clipboard.writeText(code);
+            alert("Room Code Copied: " + code);
+        }
+
+        function leaveRoom() {
+            window.location.reload();
+        }
+
+    </script>
 </body>
 </html>
