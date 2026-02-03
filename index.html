@@ -3,222 +3,402 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebRTC Dev-Station | Multi-Network Voice</title>
+    <title>GhostLink Voice</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
     <style>
-        body { background: #0b0e14; color: #e0e0e0; font-family: monospace; }
-        .dev-card { background: #161b22; border: 1px solid #30363d; border-radius: 4px; }
-        .status-pill { width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 8px; }
-        .online { background: #238636; box-shadow: 0 0 8px #238636; }
-        .offline { background: #da3633; }
-        #log-console { height: 200px; overflow-y: auto; background: #000; color: #00ff00; font-size: 0.8rem; padding: 10px; border: 1px solid #30363d; }
-        .user-item { padding: 8px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
-        .mic-active { animation: glow 1s infinite alternate; }
-        @keyframes glow { from { box-shadow: 0 0 5px #238636; } to { box-shadow: 0 0 20px #238636; } }
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --text-primary: #f8fafc;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 450px;
+            padding: 20px;
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .role-badge {
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+
+        .room-display {
+            font-size: 4rem;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -2px;
+            margin: 10px 0;
+            font-family: 'Monaco', monospace;
+        }
+
+        .btn-custom {
+            padding: 15px;
+            border-radius: 12px;
+            font-weight: 600;
+            width: 100%;
+            border: none;
+            transition: transform 0.2s;
+        }
+        .btn-custom:active { transform: scale(0.98); }
+        
+        .btn-host { background-color: var(--accent); color: white; }
+        .btn-host:hover { background-color: var(--accent-hover); }
+
+        .btn-join { background-color: #334155; color: white; margin-top: 10px; }
+        .btn-join:hover { background-color: #475569; }
+
+        .input-code {
+            background: #0f172a;
+            border: 2px solid #334155;
+            color: white;
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 5px;
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .input-code:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+        }
+
+        .status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            display: none;
+        }
+        .status-success {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .hidden { display: none !important; }
+
+        /* Animations */
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+        }
+        .live-indicator {
+            width: 10px;
+            height: 10px;
+            background-color: #4ade80;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse-green 2s infinite;
+        }
     </style>
 </head>
 <body>
 
-<div class="container-fluid py-4">
-    <div class="row g-3">
-        <div class="col-md-4">
-            <div class="dev-card p-3 mb-3">
-                <h6 class="text-uppercase text-muted border-bottom pb-2">System Authority</h6>
-                <div class="mb-3">
-                    <span id="state-indicator" class="status-pill offline"></span>
-                    <span id="conn-status">HARDWARE_OFFLINE</span>
-                </div>
-                <div class="small mb-2 text-info">LOCAL_PEER_ID:</div>
-                <div id="my-id" class="p-2 bg-dark border border-secondary mb-3 text-break text-warning">Awaiting Initialization...</div>
-                
-                <button id="init-btn" class="btn btn-outline-primary btn-sm w-100 mb-2">INITIALIZE_WEBRTC_STACK</button>
-                
-                <hr class="border-secondary">
-                
-                <div class="input-group input-group-sm mb-2">
-                    <input type="text" id="remote-id" class="form-control bg-dark text-white border-secondary" placeholder="REMOTE_PEER_ID">
-                    <button id="call-btn" class="btn btn-success" disabled>DIAL_LINK</button>
-                </div>
-            </div>
-
-            <div class="dev-card p-3">
-                <h6 class="text-uppercase text-muted border-bottom pb-2">Active Link Data</h6>
-                <div id="peer-list">
-                    <div class="text-muted small">No active media tracks...</div>
-                </div>
-            </div>
+<div class="app-container">
+    
+    <div id="view-home" class="glass-card">
+        <div class="mb-4">
+            <i class="fas fa-ghost fa-3x" style="color: var(--accent);"></i>
         </div>
+        <h3>Welcome, <span id="my-name" style="color: #a5b4fc;">User</span></h3>
+        <p class="text-secondary mb-4">Secure, peer-to-peer voice link.</p>
+        
+        <button class="btn btn-custom btn-host" onclick="setupHost()">
+            <i class="fas fa-satellite-dish me-2"></i> Create New Room
+        </button>
+        
+        <div class="my-3 text-secondary" style="font-size: 0.8rem;">— OR JOIN EXISTING —</div>
+        
+        <input type="number" id="join-code-input" class="form-control input-code" placeholder="000">
+        <button class="btn btn-custom btn-join" onclick="setupJoin()">
+            <i class="fas fa-sign-in-alt me-2"></i> Join Room
+        </button>
+    </div>
 
-        <div class="col-md-8">
-            <div class="dev-card p-3 h-100">
-                <h6 class="text-uppercase text-muted border-bottom pb-2">ICE_SIGNALING_LOGS (NAT Traversal Audit)</h6>
-                <div id="log-console" class="mb-3"></div>
-                
-                <div class="row">
-                    <div class="col-6">
-                        <h6 class="text-uppercase text-muted small">VAD_ANALYSIS (Local)</h6>
-                        <div class="progress bg-dark" style="height: 20px;">
-                            <div id="vad-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <h6 class="text-uppercase text-muted small">ICE_CANDIDATE_TYPE</h6>
-                        <div id="ice-type" class="badge bg-secondary">UNKNOWN</div>
-                    </div>
-                </div>
+    <div id="view-host" class="glass-card hidden">
+        <span class="role-badge">HOSTING</span>
+        <h2 class="text-secondary" style="font-size: 1rem;">YOUR ROOM CODE</h2>
+        <div id="host-room-code" class="room-display">...</div>
+        <p class="text-secondary small">Share this number with your friend.</p>
+        
+        <div class="spinner-border text-primary mt-3" role="status"></div>
+        <div class="mt-2 text-muted small">Waiting for connection...</div>
+
+        <div id="host-confirmation" class="status-message status-success">
+            <div class="d-flex align-items-center justify-content-center">
+                <span class="live-indicator"></span>
+                <strong><span id="guest-name-display">Guest</span> Connected!</strong>
             </div>
         </div>
     </div>
+
+    <div id="view-join" class="glass-card hidden">
+        <span class="role-badge">JOINING</span>
+        <div class="mt-4">
+            <div class="spinner-grow text-info" role="status"></div>
+        </div>
+        <h4 class="mt-3">Connecting to Room <span id="join-room-display">...</span></h4>
+        
+        <div id="join-confirmation" class="status-message status-success">
+            <div class="d-flex align-items-center justify-content-center">
+                <span class="live-indicator"></span>
+                <strong>Connected to Host!</strong>
+            </div>
+        </div>
+    </div>
+
+    <audio id="remote-audio" autoplay playsinline></audio>
+
 </div>
 
-<audio id="remote-audio" autoplay playsinline></audio>
-
-
-
 <script>
-    const App = {
-        peer: null,
-        localStream: null,
-        audioCtx: null,
-        analyser: null,
-        // Using Open Relay Project TURN servers for cross-network connectivity
-        iceConfig: {
-            'iceServers': [
-                { 'urls': 'stun:stun.l.google.com:19302' },
-                { 'urls': 'stun:stun1.l.google.com:19302' },
-                {
-                    urls: "turn:openrelay.metered.ca:80",
-                    username: "openrelayproject",
-                    credential: "openrelayprojectsecret",
-                },
-                {
-                    urls: "turn:openrelay.metered.ca:443",
-                    username: "openrelayproject",
-                    credential: "openrelayprojectsecret",
-                },
-                {
-                    urls: "turn:openrelay.metered.ca:443?transport=tcp",
-                    username: "openrelayproject",
-                    credential: "openrelayprojectsecret",
-                }
-            ],
-            'iceTransportPolicy': 'all'
-        }
+    // --- CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCSIOclG4YkP0rXH036kXPMJ9Dcf1euKp8",
+  authDomain: "ghostlink-e94f0.firebaseapp.com",
+  databaseURL: "https://ghostlink-e94f0-default-rtdb.firebaseio.com",
+  projectId: "ghostlink-e94f0",
+  storageBucket: "ghostlink-e94f0.firebasestorage.app",
+  messagingSenderId: "439838193122",
+  appId: "1:439838193122:web:3130b500e67e3c1fc975bb",
+  measurementId: "G-RL16X17VZT",
+};
+    const rtcConfig = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { 
+                urls: 'turn:staticauth.openrelay.metered.ca:80', 
+                username: 'openrelayproject', 
+                credential: 'openrelayprojectsecret' 
+            },
+            { 
+                urls: 'turn:staticauth.openrelay.metered.ca:443', 
+                username: 'openrelayproject', 
+                credential: 'openrelayprojectsecret' 
+            }
+        ]
     };
 
-    const Logger = (msg, type = 'INFO') => {
-        const consoleEl = document.getElementById('log-console');
-        const time = new Date().toLocaleTimeString().split(' ')[0];
-        consoleEl.innerHTML += `<div>[${time}] <span class="text-info">${type}</span>: ${msg}</div>`;
-        consoleEl.scrollTop = consoleEl.scrollHeight;
-    };
+    // --- NAMES & ID ---
+    const ADJECTIVES = ["Cyber", "Neon", "Quantum", "Hyper", "Solar", "Lunar", "Astro"];
+    const NOUNS = ["Wolf", "Ghost", "Pilot", "Scout", "Ninja", "Falcon", "Nomad"];
+    
+    function getRandomName() {
+        const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+        const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+        return `${adj}${noun}`;
+    }
 
-    document.getElementById('init-btn').addEventListener('click', async () => {
-        Logger("Initializing MediaDevices...");
+    const myName = getRandomName();
+    const myId = Math.random().toString(36).substr(2, 9);
+    
+    document.getElementById('my-name').innerText = myName;
+
+    // --- STATE ---
+    let db, localStream, peerConnection;
+    let currentRoomId = null;
+
+    // --- INITIALIZATION ---
+    try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+    } catch(e) {
+        console.error("Firebase Error", e);
+        alert("Configuration Error: Check console");
+    }
+
+    // --- UI FLOW ---
+
+    async function getMedia() {
         try {
-            App.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            App.audioCtx = new AudioContext();
-            setupVAD(App.localStream);
-            
-            Logger("Hardware Ready. Initializing PeerJS with TURN failover...");
-            
-            App.peer = new Peer(App.iceConfig);
-
-            App.peer.on('open', (id) => {
-                document.getElementById('my-id').innerText = id;
-                document.getElementById('state-indicator').className = 'status-pill online';
-                document.getElementById('conn-status').innerText = 'STACK_READY_WAITING_FOR_SIGNAL';
-                document.getElementById('call-btn').disabled = false;
-                Logger(`Peer Registered. ID: ${id}`);
-            });
-
-            App.peer.on('call', (call) => {
-                Logger("Inbound Call Detected", "SIGNAL");
-                call.answer(App.localStream);
-                handleCall(call);
-            });
-
-            App.peer.on('error', (err) => {
-                Logger(err.type, "FATAL_ERROR");
-                console.error(err);
-            });
-
-            document.getElementById('init-btn').disabled = true;
-            document.getElementById('init-btn').innerText = "ENGINE_RUNNING";
-        } catch (e) {
-            Logger(e.message, "HARDWARE_ERR");
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            return true;
+        } catch (err) {
+            alert("Microphone access is required to connect.");
+            return false;
         }
-    });
+    }
 
-    document.getElementById('call-btn').addEventListener('click', () => {
-        const rId = document.getElementById('remote-id').value;
-        if (!rId) return Logger("Empty Remote ID", "ERROR");
+    async function setupHost() {
+        const permitted = await getMedia();
+        if (!permitted) return;
+
+        // Generate 3 digit code
+        currentRoomId = Math.floor(100 + Math.random() * 900).toString();
         
-        Logger(`Dialing: ${rId}`, "SIGNAL");
-        const call = App.peer.call(rId, App.localStream);
-        handleCall(call);
-    });
+        // Update UI
+        document.getElementById('view-home').classList.add('hidden');
+        document.getElementById('view-host').classList.remove('hidden');
+        document.getElementById('host-room-code').innerText = currentRoomId;
 
-    function handleCall(call) {
-        call.on('stream', (remoteStream) => {
-            Logger("Media Stream Connected", "STREAM");
-            const audio = document.getElementById('remote-audio');
-            audio.srcObject = remoteStream;
-            
-            // Monitor ICE Connection State
-            const pc = call.peerConnection;
-            pc.oniceconnectionstatechange = () => {
-                Logger(`ICE State: ${pc.iceConnectionState}`, "NETWORK");
-                if(pc.iceConnectionState === 'connected') {
-                    // Detect if using STUN or TURN
-                    pc.getStats().then(stats => {
-                        stats.forEach(report => {
-                            if(report.type === 'remote-candidate') {
-                                document.getElementById('ice-type').innerText = report.candidateType.toUpperCase();
-                                Logger(`Routed via: ${report.candidateType}`, "NETWORK");
-                            }
-                        });
-                    });
-                }
-            };
-
-            updateUserList(call.peer, true);
+        // Create Room in DB
+        const roomRef = db.ref(`rooms/${currentRoomId}`);
+        roomRef.set({
+            hostId: myId,
+            hostName: myName,
+            status: 'waiting'
         });
+        roomRef.onDisconnect().remove(); // Auto-cleanup
 
-        call.on('close', () => {
-            Logger("Session Terminated", "SIGNAL");
-            updateUserList(call.peer, false);
-        });
+        // Listen for Guest Signals
+        listenForSignals(true);
     }
 
-    function setupVAD(stream) {
-        const source = App.audioCtx.createMediaStreamSource(stream);
-        App.analyser = App.audioCtx.createAnalyser();
-        App.analyser.fftSize = 256;
-        source.connect(App.analyser);
-        const data = new Uint8Array(App.analyser.frequencyBinCount);
-
-        function loop() {
-            App.analyser.getByteFrequencyData(data);
-            const volume = data.reduce((a, b) => a + b) / data.length;
-            document.getElementById('vad-bar').style.width = `${Math.min(volume * 2, 100)}%`;
-            requestAnimationFrame(loop);
+    async function setupJoin() {
+        const code = document.getElementById('join-code-input').value;
+        if (code.length !== 3) {
+            alert("Please enter a valid 3-digit room code.");
+            return;
         }
-        loop();
+
+        const permitted = await getMedia();
+        if (!permitted) return;
+
+        currentRoomId = code;
+
+        // Check if room exists
+        const roomRef = db.ref(`rooms/${currentRoomId}`);
+        roomRef.once('value', async (snapshot) => {
+            if (snapshot.exists()) {
+                // UI Update
+                document.getElementById('view-home').classList.add('hidden');
+                document.getElementById('view-join').classList.remove('hidden');
+                document.getElementById('join-room-display').innerText = currentRoomId;
+
+                // Start WebRTC as Caller
+                initializePeerConnection(true); 
+            } else {
+                alert("Room not found!");
+            }
+        });
     }
 
-    function updateUserList(peerId, active) {
-        const list = document.getElementById('peer-list');
-        list.innerHTML = active ? `
-            <div class="user-item">
-                <span class="text-success">● ${peerId.substring(0,8)}...</span>
-                <span class="badge bg-primary">VOICE_ACTIVE</span>
-            </div>
-        ` : `<div class="text-muted small">No active media tracks...</div>`;
+    // --- WEBRTC SIGNALING LOGIC ---
+
+    function listenForSignals(isHost) {
+        // If Host: Wait for 'offer' from Guest
+        // If Guest: Wait for 'answer' from Host
+        
+        const signalRef = db.ref(`rooms/${currentRoomId}/signals`);
+        
+        signalRef.on('child_added', async (snapshot) => {
+            const data = snapshot.val();
+            if (data.sender === myId) return; // Ignore own messages
+
+            if (!peerConnection) initializePeerConnection(false);
+
+            if (data.type === 'offer' && isHost) {
+                // Host receives Offer -> Sets Remote -> Sends Answer
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                signalRef.push({ type: 'answer', sdp: answer, sender: myId });
+                
+                // Show Guest Name (from data or just generic)
+                document.getElementById('host-confirmation').style.display = 'block';
+                document.querySelector('.spinner-border').style.display = 'none';
+
+            } else if (data.type === 'answer' && !isHost) {
+                // Guest receives Answer -> Sets Remote
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                
+                // Show Confirmation
+                document.getElementById('join-confirmation').style.display = 'block';
+                document.querySelector('.spinner-grow').style.display = 'none';
+
+            } else if (data.type === 'candidate') {
+                // Add ICE Candidate
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } catch (e) { console.error("Error adding candidate", e); }
+            }
+        });
     }
+
+    function initializePeerConnection(isInitiator) {
+        peerConnection = new RTCPeerConnection(rtcConfig);
+
+        // 1. Add Local Audio
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        // 2. Handle Remote Audio
+        peerConnection.ontrack = (event) => {
+            const remoteAudio = document.getElementById('remote-audio');
+            remoteAudio.srcObject = event.streams[0];
+        };
+
+        // 3. Handle ICE Candidates
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                db.ref(`rooms/${currentRoomId}/signals`).push({
+                    type: 'candidate',
+                    candidate: event.candidate.toJSON(),
+                    sender: myId
+                });
+            }
+        };
+
+        // 4. If Initiator (Guest joining), create Offer
+        if (isInitiator) {
+            createAndSendOffer();
+            // Start listening for the Answer
+            listenForSignals(false);
+        }
+    }
+
+    async function createAndSendOffer() {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        
+        db.ref(`rooms/${currentRoomId}/signals`).push({
+            type: 'offer',
+            sdp: offer,
+            sender: myId,
+            senderName: myName
+        });
+    }
+
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
