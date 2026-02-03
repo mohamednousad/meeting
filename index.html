@@ -3,144 +3,348 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Voice Chat</title>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <title>Resilient WebRTC Voice System</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .box { background: #1e1e1e; padding: 40px; border-radius: 10px; text-align: center; border: 1px solid #333; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        h1 { margin-bottom: 5px; color: #00ff88; }
-        p { color: #aaa; margin-bottom: 20px; }
-        
-        input { padding: 15px; font-size: 1.5rem; text-align: center; width: 120px; border-radius: 5px; border: none; margin: 10px; background: #333; color: white; }
-        button { padding: 15px 30px; font-size: 1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; }
-        
-        .btn-create { background: #00ff88; color: black; }
-        .btn-join { background: #0088ff; color: white; }
-        button:hover { opacity: 0.8; transform: scale(1.05); }
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent-green: #22c55e;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+        }
 
-        #status { margin-top: 20px; font-weight: bold; color: #ffcc00; }
-        .success { color: #00ff00 !important; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 90%;
+            max-width: 420px;
+            border: 1px solid #334155;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1.5rem;
+            background: #334155;
+            transition: all 0.3s ease;
+        }
+
+        .mic-container {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin: 1.5rem auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mic-icon {
+            width: 70px;
+            height: 70px;
+            background-color: #334155;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: background-color 0.3s ease;
+        }
+
+        .mic-icon svg {
+            width: 32px;
+            height: 32px;
+            fill: var(--text-primary);
+        }
+
+        /* VAD Animation */
+        .speaking {
+            background-color: var(--accent-green) !important;
+            animation: pulse-ring 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 25px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        .id-section {
+            background: #0f172a;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            border: 1px dashed #334155;
+        }
+
+        .peer-id-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        #my-id {
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: var(--accent-blue);
+            font-weight: bold;
+            word-break: break-all;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+        }
+
+        input {
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 0.75rem;
+            padding: 0.8rem 1rem;
+            color: white;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus { border-color: var(--accent-blue); }
+
+        button {
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 0.9rem;
+            border-radius: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        button:active { transform: scale(0.98); }
+        button:hover { opacity: 0.9; }
+        
+        #call-action-btn.ready-to-call { background-color: var(--accent-green); color: #062010; }
+
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="box">
-        <h1>Private Voice Call</h1>
-        <p>Simple Global Audio Chat</p>
-
-        <div id="setup-ui">
-            <button class="btn-create" onclick="createRoom()">Create Room</button>
-            <br><br>
-            <span>OR JOIN FRIEND</span><br>
-            <input type="number" id="room-code" placeholder="000">
-            <button class="btn-join" onclick="joinRoom()">Join Call</button>
-        </div>
-
-        <div id="active-ui" style="display:none;">
-            <h2 id="room-display" style="font-size: 3rem; margin: 10px;">...</h2>
-            <p>Share this number with your friend</p>
-        </div>
-
-        <div id="status">Status: Waiting for action...</div>
+    <div class="container">
+        <div id="connection-status" class="status-badge">System Offline</div>
         
-        <audio id="remote-audio" autoplay></audio>
+        <div class="mic-container">
+            <div id="vocal-indicator" class="mic-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            </div>
+        </div>
+
+        <div class="id-section">
+            <span class="peer-id-label">YOUR UNIQUE STATION ID</span>
+            <span id="my-id">--- --- ---</span>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="remote-peer-id" placeholder="Enter Destination ID...">
+            <button id="call-action-btn">Initialize Hardware</button>
+        </div>
     </div>
 
+    <audio id="remote-audio-player" autoplay playsinline class="hidden"></audio>
+
     <script>
-        // --- 1. CONFIGURATION (Google STUN for crossing countries) ---
-        const peerConfig = {
+        const AppState = {
+            peer: null,
+            localStream: null,
+            audioContext: null,
+            analyser: null,
+            isInitialized: false
+        };
+
+        const UI = {
+            status: document.getElementById('connection-status'),
+            myId: document.getElementById('my-id'),
+            remoteInput: document.getElementById('remote-peer-id'),
+            callBtn: document.getElementById('call-action-btn'),
+            vocalIndicator: document.getElementById('vocal-indicator'),
+            remoteAudio: document.getElementById('remote-audio-player')
+        };
+
+        // Configuration based on Research Report
+        const peerConfiguration = {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { 
+                        urls: 'turn:staticauth.openrelay.metered.ca:80', 
+                        username: 'openrelayproject', 
+                        credential: 'openrelayprojectsecret' 
+                    },
+                    { 
+                        urls: 'turn:staticauth.openrelay.metered.ca:443', 
+                        username: 'openrelayproject', 
+                        credential: 'openrelayprojectsecret' 
+                    }
+                ],
+                iceTransportPolicy: 'all'
             }
         };
 
-        let peer;
-        let localStream;
-        const statusEl = document.getElementById('status');
-        const remoteAudio = document.getElementById('remote-audio');
+        UI.callBtn.addEventListener('click', async () => {
+            if (!AppState.isInitialized) {
+                const success = await setupLifecycle();
+                if (success) {
+                    AppState.isInitialized = true;
+                    UI.callBtn.innerText = "Initiate Voice Link";
+                    UI.callBtn.classList.add('ready-to-call');
+                }
+            } else {
+                performCall();
+            }
+        });
 
-        // --- 2. HOST LOGIC ---
-        async function createRoom() {
-            // Get Mic Permission first
-            if (!await setupAudio()) return;
-
-            // Generate Random 3-Digit ID
-            const roomId = Math.floor(Math.random() * 900) + 100;
-            
-            // Connect to PeerJS Cloud
-            // We use a prefix 'voice-app-' to ensure the ID is unique on their server
-            peer = new Peer(`voice-app-${roomId}`, peerConfig);
-
-            peer.on('open', (id) => {
-                showActiveUI(roomId);
-                statusEl.innerText = "Waiting for friend to join...";
-            });
-
-            // Answer incoming call automatically
-            peer.on('call', (call) => {
-                call.answer(localStream); // Send my voice back
-                
-                call.on('stream', (remoteStream) => {
-                    playAudio(remoteStream);
-                });
-            });
-
-            peer.on('error', (err) => alert("Error: " + err));
-        }
-
-        // --- 3. JOIN LOGIC ---
-        async function joinRoom() {
-            const roomId = document.getElementById('room-code').value;
-            if (roomId.length !== 3) return alert("Please enter the 3-digit code!");
-
-            // Get Mic Permission first
-            if (!await setupAudio()) return;
-
-            statusEl.innerText = "Connecting to server...";
-            
-            // Connect as a guest (random ID)
-            peer = new Peer(null, peerConfig);
-
-            peer.on('open', (id) => {
-                statusEl.innerText = "Calling Room " + roomId + "...";
-                
-                // Call the Host
-                const call = peer.call(`voice-app-${roomId}`, localStream);
-
-                call.on('stream', (remoteStream) => {
-                    playAudio(remoteStream);
-                });
-
-                call.on('error', (err) => {
-                    statusEl.innerText = "Call Failed. Is the room ID correct?";
-                });
-            });
-        }
-
-        // --- 4. HELPERS ---
-        async function setupAudio() {
+        async function setupLifecycle() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                UI.status.innerText = "Requesting Media...";
+                
+                // 1. AudioContext Unlock (Gesture Required)
+                AppState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (AppState.audioContext.state === 'suspended') {
+                    await AppState.audioContext.resume();
+                }
+
+                // 2. Local Media Acquisition
+                AppState.localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                // 3. Initialize VAD for local feedback
+                setupVAD(AppState.localStream);
+
+                // 4. Initialize PeerJS
+                initPeer();
+                
                 return true;
             } catch (err) {
-                alert("Microphone Access Denied! You cannot talk without a mic.");
+                console.error(err);
+                UI.status.innerText = "Hardware Error";
+                UI.status.style.background = "var(--accent-red)";
                 return false;
             }
         }
 
-        function playAudio(stream) {
-            statusEl.innerText = "CONNECTED! YOU CAN SPEAK NOW.";
-            statusEl.classList.add('success');
-            remoteAudio.srcObject = stream;
+        function initPeer() {
+            AppState.peer = new Peer(peerConfiguration);
+
+            AppState.peer.on('open', (id) => {
+                UI.myId.innerText = id;
+                UI.status.innerText = "Online / Ready";
+                UI.status.style.background = "var(--accent-blue)";
+            });
+
+            AppState.peer.on('call', (incoming) => {
+                UI.status.innerText = "Incoming Link...";
+                incoming.answer(AppState.localStream);
+                handleStream(incoming);
+            });
+
+            AppState.peer.on('error', (err) => {
+                UI.status.innerText = `Relay Error: ${err.type}`;
+                UI.status.style.background = "var(--accent-red)";
+            });
         }
 
-        function showActiveUI(id) {
-            document.getElementById('setup-ui').style.display = 'none';
-            document.getElementById('active-ui').style.display = 'block';
-            document.getElementById('room-display').innerText = id;
+        function performCall() {
+            const destId = UI.remoteInput.value.trim();
+            if (!destId) return;
+
+            UI.status.innerText = "Establishing Path...";
+            const call = AppState.peer.call(destId, AppState.localStream);
+            handleStream(call);
+        }
+
+        function handleStream(connection) {
+            connection.on('stream', (remoteStream) => {
+                UI.remoteAudio.srcObject = remoteStream;
+                // Force play to bypass mobile silent switches
+                UI.remoteAudio.play().catch(() => {
+                    UI.status.innerText = "Tap to Unmute";
+                    window.addEventListener('click', () => UI.remoteAudio.play(), { once: true });
+                });
+                
+                UI.status.innerText = "Link Active";
+                UI.status.style.background = "var(--accent-green)";
+            });
+
+            connection.on('close', () => {
+                UI.status.innerText = "Link Terminated";
+                UI.status.style.background = "#334155";
+            });
+        }
+
+        /**
+         * Voice Activity Detection (VAD) Logic
+         * Uses FFT to monitor the 80Hz - 255Hz human speech window
+         */
+        function setupVAD(stream) {
+            const source = AppState.audioContext.createMediaStreamSource(stream);
+            AppState.analyser = AppState.audioContext.createAnalyser();
+            AppState.analyser.fftSize = 512;
+            AppState.analyser.smoothingTimeConstant = 0.8;
+            source.connect(AppState.analyser);
+
+            const bufferLength = AppState.analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            const THRESHOLD = 40; 
+
+            function checkVolume() {
+                AppState.analyser.getByteFrequencyData(dataArray);
+                
+                // Average the first 15 bins (roughly 0 - 320Hz)
+                let energy = 0;
+                for(let i = 0; i < 15; i++) {
+                    energy += dataArray[i];
+                }
+                const avg = energy / 15;
+
+                if (avg > THRESHOLD) {
+                    UI.vocalIndicator.classList.add('speaking');
+                } else {
+                    UI.vocalIndicator.classList.remove('speaking');
+                }
+                requestAnimationFrame(checkVolume);
+            }
+            checkVolume();
         }
     </script>
 </body>
